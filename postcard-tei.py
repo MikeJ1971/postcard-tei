@@ -9,22 +9,23 @@ Options:
   -h, --help              show this help
 
 Examples:
-  postcard-tei -d ~/postcards -o ~/data.csv
+  postcard-tei -d /Users/mike/postcards -o /Users/mike/data.csv
 
 """
 import sys
 import getopt
 import os
+import csv
 
 from xml.sax.handler import ContentHandler, feature_namespaces
 from xml.sax import make_parser
 
 
 class GeoContentHandler(ContentHandler):
-
-    def __init__(self):
+    def __init__(self, writer):
         ContentHandler.__init__(self)
         self._charBuffer = []
+        self.writer = writer
 
     tei_ns = "http://www.tei-c.org/ns/1.0"
     inTeiHeader = False
@@ -34,11 +35,12 @@ class GeoContentHandler(ContentHandler):
     postcard_id = None
     data = []
     line = []
+    writer = None
 
     def line_item(self, idno, type, geo):
         line = [idno, type]
         geo = ''.join(geo).split(" ")
-        self.data.append(line + geo)
+        self.writer.writerow(line + geo)
 
     def startElementNS(self, (uri, localname), qname, attrs):
         if uri == self.tei_ns:
@@ -71,7 +73,6 @@ class GeoContentHandler(ContentHandler):
                 print self.postcard_id
                 print self.data
             elif localname == "div":
-                print "Yes"
                 self.inRecto = False
                 self.inMessage = False
                 self.inDestination = False
@@ -83,13 +84,12 @@ class GeoContentHandler(ContentHandler):
 
 
 class PostCardTei:
-
     def __init__(self, source_dir, output_file):
         self.source_dir = source_dir
         self.output_file = output_file
 
-    def process_file(self, full_path):
-        handler = GeoContentHandler()
+    def process_file(self, full_path, writer):
+        handler = GeoContentHandler(writer)
         sax_parser = make_parser()
         sax_parser.setContentHandler(handler)
         sax_parser.setFeature(feature_namespaces, 1)
@@ -100,10 +100,13 @@ class PostCardTei:
         """
         Walk the directory looking for XML files.
         """
+        out = open(self.output_file, 'wt')
+        writer = csv.writer(out)
+
         for root, subFolders, files in os.walk(self.source_dir):
             files = [fi for fi in files if fi.endswith(".xml")]
             for name in files:
-                self.process_file(os.path.abspath(os.path.join(root, name)))
+                self.process_file(os.path.abspath(os.path.join(root, name)), writer)
 
 
 def usage():
